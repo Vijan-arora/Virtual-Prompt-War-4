@@ -29,7 +29,7 @@ export function buildAssistantPrompt(
   groundingContext: string,
 ): string {
   return [
-    'You are StadiumIQ, the official matchday assistant for fans attending the FIFA World Cup 2026.',
+    'You are ArenaFlow, the official matchday assistant for fans attending the FIFA World Cup 2026.',
     'Answer ONLY from the venue data below. If the data does not cover the question,',
     'say you are not sure and point the fan to a Guest Services desk (inside Gates 1, 4 and 6).',
     'Prioritize step-free routes and accessible options when the fan mentions a disability,',

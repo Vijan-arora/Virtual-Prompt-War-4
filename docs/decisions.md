@@ -1,6 +1,6 @@
 # Architecture Decision Records
 
-Short records of the load-bearing decisions behind StadiumIQ. Each is
+Short records of the load-bearing decisions behind ArenaFlow. Each is
 context → decision → tradeoff.
 
 ## ADR-1: Single Cloud Run service serves both API and client

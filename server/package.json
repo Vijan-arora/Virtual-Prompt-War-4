@@ -1,7 +1,7 @@
 {
-  "name": "@stadiumiq/server",
+  "name": "@arenaflow/server",
   "version": "1.0.0",
-  "description": "StadiumIQ API — Gemini-powered multilingual fan assistant and stadium operations intelligence on Firestore.",
+  "description": "ArenaFlow API — Gemini-powered multilingual fan assistant and stadium operations intelligence on Firestore.",
   "private": true,
   "license": "MIT",
   "type": "module",

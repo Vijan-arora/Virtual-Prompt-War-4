@@ -1,4 +1,4 @@
-# StadiumIQ — Smart Stadiums & Tournament Operations
+# ArenaFlow — Smart Stadiums & Tournament Operations
 
 GenAI platform for the **FIFA World Cup 2026** that enhances both the fan
 experience and venue operations at Estadio Azteca. Fans get multilingual,
@@ -23,7 +23,7 @@ decisions.
 Every requirement below is a working, demonstrable flow on the live URL.
 Nothing ships that is not a row in this table.
 
-| #   | Requirement (problem-statement theme) | How StadiumIQ delivers it                                                                                          | Live route               |
+| #   | Requirement (problem-statement theme) | How ArenaFlow delivers it                                                                                          | Live route               |
 | --- | ------------------------------------- | ------------------------------------------------------------------------------------------------------------------ | ------------------------ |
 | R1  | **Navigation**                        | Assistant gives grounded wayfinding — which gate serves a section, step-free routes to any facility                | `/assistant`             |
 | R2  | **Crowd management**                  | Operations board shows per-zone density with comfortable/busy/critical status; AI briefing recommends redirections | `/operations`            |
@@ -55,7 +55,7 @@ Feature-folder monorepo (npm workspaces). Route handlers dispatch; feature
 services hold logic; `lib/` holds pure, reusable utilities.
 
 ```text
-stadiumiq/
+arenaflow/
 ├── server/                       Node 22 · Express 5 · TypeScript
 │   └── src/
 │       ├── config/               env (zod-validated) + constants
@@ -208,7 +208,7 @@ Built to **WCAG 2.1 AA** and verified with axe and Lighthouse.
 
 Each service is load-bearing, accessed through its official SDK.
 
-| Service                      | Role in StadiumIQ                                                                              | Where                                                |
+| Service                      | Role in ArenaFlow                                                                              | Where                                                |
 | ---------------------------- | ---------------------------------------------------------------------------------------------- | ---------------------------------------------------- |
 | **Cloud Run**                | Hosts the single containerized service (API + client), `--min-instances=1`, region asia-south1 | `Dockerfile`, deploy                                 |
 | **Gemini (`@google/genai`)** | Generates grounded multilingual answers and operations briefings                               | `server/src/lib/gemini.ts`                           |

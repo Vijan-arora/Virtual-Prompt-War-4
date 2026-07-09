@@ -1,4 +1,4 @@
-// Response shapes returned by the StadiumIQ API. Kept in sync with the
+// Response shapes returned by the ArenaFlow API. Kept in sync with the
 // server feature types; the client only depends on the fields it renders.
 
 /** Languages the fan assistant supports. */

@@ -2,7 +2,7 @@
 
 ## Threat model
 
-StadiumIQ is a public, read-mostly demo: the only user inputs are a free-text
+ArenaFlow is a public, read-mostly demo: the only user inputs are a free-text
 question to the fan assistant and a button that requests an operations
 briefing. The assets worth protecting are the Gemini API key, the Firestore
 dataset, and service availability. The realistic threats are prompt-injection

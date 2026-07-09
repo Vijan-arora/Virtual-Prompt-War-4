@@ -20,7 +20,7 @@ function startTelemetrySimulator(): void {
 
 const app = buildApp();
 app.listen(env.PORT, () => {
-  logger.info({ port: env.PORT, nodeEnv: env.NODE_ENV }, 'StadiumIQ server listening');
+  logger.info({ port: env.PORT, nodeEnv: env.NODE_ENV }, 'ArenaFlow server listening');
 });
 
 // Seeding is best-effort at startup: if Firestore is briefly unreachable the
