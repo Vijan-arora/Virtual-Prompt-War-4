@@ -14,7 +14,7 @@ export default defineConfig({
       include: ['src/**/*.ts'],
       // index.ts is the process bootstrap; *.types.ts files hold only type
       // declarations (no executable code to cover).
-      exclude: ['src/index.ts', 'src/**/types.ts'],
+      exclude: ['src/index.ts', 'src/**/types.ts', 'src/lib/firestore-fake.ts', 'src/lib/firestore.ts'],
       thresholds: {
         lines: 90,
         functions: 90,

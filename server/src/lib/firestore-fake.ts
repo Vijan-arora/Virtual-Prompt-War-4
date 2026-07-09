@@ -14,15 +14,16 @@ interface FakeQuerySnapshot {
   docs: { data(): DocData; ref: FakeDocRef }[];
 }
 
-function resolveValue(existing: any, update: any) {
+function resolveValue(existing: unknown, update: unknown): unknown {
   if (update && typeof update === 'object') {
+    const updateObj = update as { constructor?: { name?: string }; operand?: unknown };
+    const constructorName = updateObj.constructor?.name;
     if (
-      update.constructor &&
-      (update.constructor.name === 'NumericIncrementTransform' ||
-        update.constructor.name === 'FieldValue') &&
-      typeof update.operand === 'number'
+      (constructorName === 'NumericIncrementTransform' || constructorName === 'FieldValue') &&
+      typeof updateObj.operand === 'number'
     ) {
-      return (typeof existing === 'number' ? existing : 0) + update.operand;
+      const existingNum = typeof existing === 'number' ? existing : 0;
+      return existingNum + updateObj.operand;
     }
   }
   return update;
