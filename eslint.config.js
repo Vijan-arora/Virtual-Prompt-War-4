@@ -9,7 +9,10 @@ export default tseslint.config(
   ...tseslint.configs.stylisticTypeChecked,
   {
     languageOptions: {
-      parserOptions: { projectService: true, tsconfigRootDir: import.meta.dirname },
+      parserOptions: {
+        projectService: true,
+        tsconfigRootDir: import.meta.dirname,
+      },
     },
     rules: {
       'no-console': ['error', { allow: ['warn', 'error'] }],
@@ -44,5 +47,31 @@ export default tseslint.config(
   {
     files: ['**/*.js'],
     extends: [tseslint.configs.disableTypeChecked],
+  },
+  {
+    // Repo tooling and e2e specs live outside the client/server tsconfig
+    // projects, and don't need the same project-aware strictness as
+    // application code — lint them syntactically instead.
+    files: ['*.cjs', 'playwright.config.ts', 'playwright.live.config.ts', 'e2e/**/*.ts'],
+    extends: [tseslint.configs.disableTypeChecked],
+    languageOptions: {
+      globals: { module: 'readonly', require: 'readonly' },
+    },
+  },
+  {
+    files: ['tests/load/**/*.js'],
+    languageOptions: {
+      globals: {
+        __ENV: 'readonly',
+        __VU: 'readonly',
+        __ITER: 'readonly',
+      },
+    },
+    rules: {
+      // k6 scripts run in k6's own JS runtime; the default-export function
+      // is invoked by k6 itself, not by our own app code, so the usual
+      // module-boundary typing rule doesn't apply here.
+      '@typescript-eslint/explicit-module-boundary-types': 'off',
+    },
   },
 );

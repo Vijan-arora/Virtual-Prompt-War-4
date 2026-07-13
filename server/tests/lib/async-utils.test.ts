@@ -29,12 +29,12 @@ describe('async-utils', () => {
 
     it('should retry if the function fails and eventually succeed', async () => {
       let calls = 0;
-      const fn = vi.fn().mockImplementation(async () => {
+      const fn = vi.fn().mockImplementation(() => {
         calls++;
         if (calls < 3) {
-          throw new Error('fail');
+          return Promise.reject(new Error('fail'));
         }
-        return 'success';
+        return Promise.resolve('success');
       });
 
       const result = await retryWithDelay(fn, 3, 5);
@@ -44,12 +44,12 @@ describe('async-utils', () => {
 
     it('should work without delay if delayMs is 0 or negative', async () => {
       let calls = 0;
-      const fn = vi.fn().mockImplementation(async () => {
+      const fn = vi.fn().mockImplementation(() => {
         calls++;
         if (calls < 2) {
-          throw new Error('fail fast');
+          return Promise.reject(new Error('fail fast'));
         }
-        return 'success fast';
+        return Promise.resolve('success fast');
       });
 
       const result = await retryWithDelay(fn, 2, 0);

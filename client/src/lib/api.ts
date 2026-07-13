@@ -6,6 +6,7 @@ import type {
   OpsBriefing,
   OpsSnapshot,
   SupportedLanguage,
+  VenueProfile,
 } from './api-types.js';
 
 /** Error thrown for any non-2xx API response, carrying a display message. */
@@ -77,6 +78,6 @@ export function requestBriefing(): Promise<OpsBriefing> {
 }
 
 /** Fetches the complete venue profile. */
-export function fetchVenueData(): Promise<{ venue: any }> {
-  return request<{ venue: any }>('/api/stadium/venue');
+export function fetchVenueData(): Promise<{ venue: VenueProfile }> {
+  return request<{ venue: VenueProfile }>('/api/stadium/venue');
 }

@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import * as api from '../../../src/lib/api.js';
 import { useAssistant } from '../../../src/features/assistant/useAssistant.js';
+import type { VenueProfile } from '../../../src/lib/api-types.js';
 
 beforeEach(() => {
   localStorage.clear();
@@ -72,9 +73,9 @@ describe('useAssistant', () => {
   });
 
   it('pre-caches venue data on mount when online', async () => {
-    const venueMock = { name: 'Estadio Azteca', capacity: 100 } as any;
+    const venueMock = { name: 'Estadio Azteca', capacity: 100 } as unknown as VenueProfile;
     const fetchSpy = vi.spyOn(api, 'fetchVenueData').mockResolvedValue({ venue: venueMock });
-    
+
     renderHook(() => useAssistant());
 
     await waitFor(() => {

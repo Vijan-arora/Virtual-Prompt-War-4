@@ -6,8 +6,8 @@ export function delay(ms: number): Promise<void> {
 /** Retries an async function up to a specified number of times with an optional delay. */
 export async function retryWithDelay<T>(
   fn: () => Promise<T>,
-  retries: number = 1,
-  delayMs: number = 0,
+  retries = 1,
+  delayMs = 0,
 ): Promise<T> {
   try {
     return await fn();
@@ -26,11 +26,13 @@ export async function retryWithDelay<T>(
 export function withTimeout<T>(
   promise: Promise<T>,
   timeoutMs: number,
-  errorMessage: string = 'Operation timed out',
+  errorMessage = 'Operation timed out',
 ): Promise<T> {
   let timeoutId: NodeJS.Timeout | undefined;
   const timeoutPromise = new Promise<never>((_, reject) => {
-    timeoutId = setTimeout(() => reject(new Error(errorMessage)), timeoutMs);
+    timeoutId = setTimeout(() => {
+      reject(new Error(errorMessage));
+    }, timeoutMs);
   });
   return Promise.race([promise, timeoutPromise]).finally(() => {
     if (timeoutId) {

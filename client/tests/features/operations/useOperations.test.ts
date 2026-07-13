@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import * as api from '../../../src/lib/api.js';
 import { useOperations } from '../../../src/features/operations/useOperations.js';
-import type { OpsSnapshot } from '../../../src/lib/api-types.js';
+import type { OpsBriefing, OpsSnapshot } from '../../../src/lib/api-types.js';
 
 const SNAPSHOT: OpsSnapshot = {
   zones: [],
@@ -40,12 +40,12 @@ describe('useOperations', () => {
 
   it('should return early on generateBriefing if already loading', async () => {
     vi.spyOn(api, 'fetchSnapshot').mockResolvedValue(SNAPSHOT);
-    
-    let resolveBriefing!: (value: any) => void;
-    const briefingPromise = new Promise((resolve) => {
+
+    let resolveBriefing!: (value: OpsBriefing) => void;
+    const briefingPromise = new Promise<OpsBriefing>((resolve) => {
       resolveBriefing = resolve;
     });
-    const requestBriefingSpy = vi.spyOn(api, 'requestBriefing').mockReturnValue(briefingPromise as any);
+    const requestBriefingSpy = vi.spyOn(api, 'requestBriefing').mockReturnValue(briefingPromise);
 
     const { result } = renderHook(() => useOperations());
 
@@ -71,7 +71,7 @@ describe('useOperations', () => {
     expect(requestBriefingSpy).toHaveBeenCalledTimes(1);
   });
 
-  it('updates online/offline state via window events', async () => {
+  it('updates online/offline state via window events', () => {
     vi.spyOn(api, 'fetchSnapshot').mockResolvedValue(SNAPSHOT);
     const { result } = renderHook(() => useOperations());
 

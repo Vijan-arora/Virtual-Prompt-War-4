@@ -24,17 +24,16 @@ describe('error-handler middleware', () => {
     it('should format AppError correctly and return the status code', () => {
       const err = AppError.badRequest('Invalid body data');
       const req = { method: 'POST', path: '/ask' } as Request;
-      
+
       const jsonMock = vi.fn();
-      const res = {
-        status: vi.fn().mockImplementation(() => ({ json: jsonMock })),
-      } as unknown as Response;
-      
+      const statusMock = vi.fn().mockImplementation(() => ({ json: jsonMock }));
+      const res = { status: statusMock } as unknown as Response;
+
       const next = vi.fn() as NextFunction;
 
       errorHandler(err, req, res, next);
 
-      expect(res.status).toHaveBeenCalledWith(400);
+      expect(statusMock).toHaveBeenCalledWith(400);
       expect(jsonMock).toHaveBeenCalledWith({
         error: { code: 'BAD_REQUEST', message: 'Invalid body data' },
       });
@@ -45,15 +44,14 @@ describe('error-handler middleware', () => {
       const req = { method: 'GET', path: '/ops' } as Request;
 
       const jsonMock = vi.fn();
-      const res = {
-        status: vi.fn().mockImplementation(() => ({ json: jsonMock })),
-      } as unknown as Response;
+      const statusMock = vi.fn().mockImplementation(() => ({ json: jsonMock }));
+      const res = { status: statusMock } as unknown as Response;
 
       const next = vi.fn() as NextFunction;
 
       errorHandler(err, req, res, next);
 
-      expect(res.status).toHaveBeenCalledWith(500);
+      expect(statusMock).toHaveBeenCalledWith(500);
       expect(jsonMock).toHaveBeenCalledWith({
         error: { code: 'INTERNAL', message: 'Something went wrong on our side. Please try again.' },
       });
@@ -64,15 +62,14 @@ describe('error-handler middleware', () => {
       const req = { method: 'GET', path: '/ops' } as Request;
 
       const jsonMock = vi.fn();
-      const res = {
-        status: vi.fn().mockImplementation(() => ({ json: jsonMock })),
-      } as unknown as Response;
+      const statusMock = vi.fn().mockImplementation(() => ({ json: jsonMock }));
+      const res = { status: statusMock } as unknown as Response;
 
       const next = vi.fn() as NextFunction;
 
       errorHandler(err, req, res, next);
 
-      expect(res.status).toHaveBeenCalledWith(500);
+      expect(statusMock).toHaveBeenCalledWith(500);
       expect(jsonMock).toHaveBeenCalledWith({
         error: { code: 'INTERNAL', message: 'Something went wrong on our side. Please try again.' },
       });

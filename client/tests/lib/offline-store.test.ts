@@ -6,6 +6,7 @@ import {
   saveOpsSnapshot,
   saveVenueData,
 } from '../../src/lib/offline-store.js';
+import type { OpsSnapshot, VenueProfile } from '../../src/lib/api-types.js';
 
 describe('offline-store', () => {
   beforeEach(() => {
@@ -13,7 +14,7 @@ describe('offline-store', () => {
   });
 
   it('saves and retrieves venue data correctly', () => {
-    const mockVenue = { name: 'Estadio Azteca Mock', capacity: 80000 } as any;
+    const mockVenue = { name: 'Estadio Azteca Mock', capacity: 80000 } as unknown as VenueProfile;
     saveVenueData(mockVenue);
     expect(getVenueData()).toEqual(mockVenue);
   });
@@ -25,7 +26,11 @@ describe('offline-store', () => {
   });
 
   it('saves and retrieves operations snapshot correctly', () => {
-    const mockSnapshot = { generatedAt: '2026-07-12T10:00:00Z', zones: [], incidents: [] } as any;
+    const mockSnapshot = {
+      generatedAt: '2026-07-12T10:00:00Z',
+      zones: [],
+      incidents: [],
+    } as unknown as OpsSnapshot;
     saveOpsSnapshot(mockSnapshot);
     expect(getOpsSnapshot()).toEqual(mockSnapshot);
   });
@@ -47,7 +52,7 @@ describe('offline-store', () => {
     expect(venue.name).toBe('Estadio Azteca');
 
     // Should fail silently
-    saveOpsSnapshot({} as any);
+    saveOpsSnapshot({} as unknown as OpsSnapshot);
 
     // Should return null
     expect(getOpsSnapshot()).toBeNull();
@@ -58,7 +63,9 @@ describe('offline-store', () => {
 
   describe('getOfflineAssistantResponse', () => {
     it('returns gates information for gate queries', () => {
-      expect(getOfflineAssistantResponse('What gate should I use?', 'en')).toContain('Gates 1 to 6');
+      expect(getOfflineAssistantResponse('What gate should I use?', 'en')).toContain(
+        'Gates 1 to 6',
+      );
       expect(getOfflineAssistantResponse('بوابة', 'ar')).toContain('البوابات من 1 إلى 6');
       expect(getOfflineAssistantResponse('puerta', 'es')).toContain('puertas 1 a 6');
       expect(getOfflineAssistantResponse('porte', 'fr')).toContain('portes 1 à 6');

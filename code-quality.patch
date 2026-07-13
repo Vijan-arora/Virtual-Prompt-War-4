@@ -1,0 +1,778 @@
+diff --git a/client/src/features/assistant/useAssistant.ts b/client/src/features/assistant/useAssistant.ts
+index 5ec4a5f..cc77a28 100644
+--- a/client/src/features/assistant/useAssistant.ts
++++ b/client/src/features/assistant/useAssistant.ts
+@@ -1,10 +1,12 @@
+ // State and side effects for the fan assistant conversation. Keeps the page
+ // component declarative: it renders whatever this hook exposes.
+-import { useCallback, useEffect, useState } from 'react';
++import { useCallback, useState } from 'react';
+ 
+-import { ApiError, askAssistant, fetchVenueData } from '../../lib/api.js';
++import { ApiError, askAssistant } from '../../lib/api.js';
+ import type { SupportedLanguage } from '../../lib/api-types.js';
+-import { getOfflineAssistantResponse, saveVenueData } from '../../lib/offline-store.js';
++import { getOfflineAssistantResponse } from '../../lib/offline-store.js';
++import { useOnlineStatus } from '../../lib/use-online-status.js';
++import { useCachedVenueTime } from './useCachedVenueTime.js';
+ 
+ /** A single turn in the assistant conversation. */
+ export interface ChatTurn {
+@@ -35,38 +37,8 @@ export function useAssistant(): UseAssistantResult {
+   const [language, setLanguage] = useState<SupportedLanguage>('en');
+   const [isLoading, setIsLoading] = useState(false);
+   const [error, setError] = useState<string | null>(null);
+-  const [isOffline, setIsOffline] = useState(() => !navigator.onLine);
+-  const [lastKnownTime, setLastKnownTime] = useState<string | null>(() => {
+-    return localStorage.getItem('arenaflow_venue_data_time') || null;
+-  });
+-
+-  // Track online/offline status
+-  useEffect(() => {
+-    const handleOnline = () => setIsOffline(false);
+-    const handleOffline = () => setIsOffline(true);
+-    window.addEventListener('online', handleOnline);
+-    window.addEventListener('offline', handleOffline);
+-    return () => {
+-      window.removeEventListener('online', handleOnline);
+-      window.removeEventListener('offline', handleOffline);
+-    };
+-  }, []);
+-
+-  // Fetch venue data on mount to cache it for offline fallback
+-  useEffect(() => {
+-    if (!isOffline) {
+-      fetchVenueData()
+-        .then((res) => {
+-          saveVenueData(res.venue);
+-          const nowStr = new Date().toLocaleTimeString();
+-          localStorage.setItem('arenaflow_venue_data_time', nowStr);
+-          setLastKnownTime(nowStr);
+-        })
+-        .catch(() => {
+-          // Ignore background fetch error, rely on fallback/cache
+-        });
+-    }
+-  }, [isOffline]);
++  const [isOffline, setIsOffline] = useOnlineStatus();
++  const lastKnownTime = useCachedVenueTime(isOffline);
+ 
+   const ask = useCallback(
+     async (question: string): Promise<void> => {
+diff --git a/client/src/features/assistant/useCachedVenueTime.ts b/client/src/features/assistant/useCachedVenueTime.ts
+new file mode 100644
+index 0000000..2cca03a
+--- /dev/null
++++ b/client/src/features/assistant/useCachedVenueTime.ts
+@@ -0,0 +1,36 @@
++import { useEffect, useState } from 'react';
++
++import { fetchVenueData } from '../../lib/api.js';
++import { saveVenueData } from '../../lib/offline-store.js';
++
++const STORAGE_KEY = 'arenaflow_venue_data_time';
++
++/**
++ * While online, fetches the full venue profile in the background and caches
++ * it for offline fallback. Returns when that cache was last refreshed, so
++ * the UI can show fans how fresh the offline data is.
++ */
++export function useCachedVenueTime(isOffline: boolean): string | null {
++  const [lastKnownTime, setLastKnownTime] = useState<string | null>(() =>
++    localStorage.getItem(STORAGE_KEY),
++  );
++
++  useEffect(() => {
++    if (isOffline) {
++      return;
++    }
++    fetchVenueData()
++      .then((res) => {
++        saveVenueData(res.venue);
++        const nowStr = new Date().toLocaleTimeString();
++        localStorage.setItem(STORAGE_KEY, nowStr);
++        setLastKnownTime(nowStr);
++      })
++      .catch(() => {
++        // Ignore background fetch error; the assistant falls back to
++        // whatever venue data is already cached.
++      });
++  }, [isOffline]);
++
++  return lastKnownTime;
++}
+diff --git a/client/src/features/operations/useOperations.ts b/client/src/features/operations/useOperations.ts
+index 5b054e2..0dc0713 100644
+--- a/client/src/features/operations/useOperations.ts
++++ b/client/src/features/operations/useOperations.ts
+@@ -1,17 +1,15 @@
+ // State and side effects for the operations command center: loads the live
+ // snapshot on mount, refreshes it on an interval, and generates AI briefings
+ // on demand.
+-import { useCallback, useEffect, useState } from 'react';
++import { useCallback, useState } from 'react';
+ 
+-import { ApiError, fetchSnapshot, requestBriefing } from '../../lib/api.js';
+-import type { OpsBriefing, OpsSnapshot } from '../../lib/api-types.js';
+-import { getOpsSnapshot, saveOpsSnapshot } from '../../lib/offline-store.js';
+-
+-/** How often the dashboard re-fetches the live snapshot, in milliseconds. */
+-const SNAPSHOT_REFRESH_MS = 30_000;
++import { ApiError, requestBriefing } from '../../lib/api.js';
++import type { OpsBriefing } from '../../lib/api-types.js';
++import { useOnlineStatus } from '../../lib/use-online-status.js';
++import { useSnapshotPolling } from './useSnapshotPolling.js';
+ 
+ interface UseOperationsResult {
+-  snapshot: OpsSnapshot | null;
++  snapshot: ReturnType<typeof useSnapshotPolling>['snapshot'];
+   snapshotError: string | null;
+   briefing: OpsBriefing | null;
+   isBriefingLoading: boolean;
+@@ -27,69 +25,11 @@ function toMessage(caught: unknown, fallback: string): string {
+ 
+ /** Manages live snapshot polling and briefing generation for the dashboard. */
+ export function useOperations(): UseOperationsResult {
+-  const [snapshot, setSnapshot] = useState<OpsSnapshot | null>(null);
+-  const [snapshotError, setSnapshotError] = useState<string | null>(null);
+   const [briefing, setBriefing] = useState<OpsBriefing | null>(null);
+   const [isBriefingLoading, setIsBriefingLoading] = useState(false);
+   const [briefingError, setBriefingError] = useState<string | null>(null);
+-  const [isOffline, setIsOffline] = useState(() => !navigator.onLine);
+-  const [lastKnownTime, setLastKnownTime] = useState<string | null>(null);
+-
+-  // Track online/offline status
+-  useEffect(() => {
+-    const handleOnline = () => setIsOffline(false);
+-    const handleOffline = () => setIsOffline(true);
+-    window.addEventListener('online', handleOnline);
+-    window.addEventListener('offline', handleOffline);
+-    return () => {
+-      window.removeEventListener('online', handleOnline);
+-      window.removeEventListener('offline', handleOffline);
+-    };
+-  }, []);
+-
+-  useEffect(() => {
+-    let active = true;
+-    const load = async (): Promise<void> => {
+-      if (isOffline) {
+-        const cached = getOpsSnapshot();
+-        if (cached && active) {
+-          setSnapshot(cached);
+-          setLastKnownTime(new Date(cached.generatedAt).toLocaleTimeString());
+-        }
+-        return;
+-      }
+-      try {
+-        const next = await fetchSnapshot();
+-        if (active) {
+-          setSnapshot(next);
+-          saveOpsSnapshot(next);
+-          setSnapshotError(null);
+-          setLastKnownTime(new Date(next.generatedAt).toLocaleTimeString());
+-        }
+-      } catch (caught) {
+-        if (active) {
+-          const cached = getOpsSnapshot();
+-          if (cached) {
+-            setSnapshot(cached);
+-            setLastKnownTime(new Date(cached.generatedAt).toLocaleTimeString());
+-            setIsOffline(true);
+-          } else {
+-            setSnapshotError(toMessage(caught, 'Unable to load live operations data.'));
+-          }
+-        }
+-      }
+-    };
+-    void load();
+-    const timer = setInterval(() => {
+-      if (!isOffline) {
+-        void load();
+-      }
+-    }, SNAPSHOT_REFRESH_MS);
+-    return () => {
+-      active = false;
+-      clearInterval(timer);
+-    };
+-  }, [isOffline]);
++  const [isOffline, setIsOffline] = useOnlineStatus();
++  const { snapshot, snapshotError, lastKnownTime } = useSnapshotPolling(isOffline, setIsOffline);
+ 
+   const generateBriefing = useCallback(async (): Promise<void> => {
+     if (isBriefingLoading) {
+@@ -111,7 +51,7 @@ export function useOperations(): UseOperationsResult {
+     } finally {
+       setIsBriefingLoading(false);
+     }
+-  }, [isBriefingLoading, isOffline]);
++  }, [isBriefingLoading, isOffline, setIsOffline]);
+ 
+   return {
+     snapshot,
+diff --git a/client/src/features/operations/useSnapshotPolling.ts b/client/src/features/operations/useSnapshotPolling.ts
+new file mode 100644
+index 0000000..8c8baf2
+--- /dev/null
++++ b/client/src/features/operations/useSnapshotPolling.ts
+@@ -0,0 +1,81 @@
++import { useEffect, useState } from 'react';
++
++import { ApiError, fetchSnapshot } from '../../lib/api.js';
++import type { OpsSnapshot } from '../../lib/api-types.js';
++import { getOpsSnapshot, saveOpsSnapshot } from '../../lib/offline-store.js';
++
++/** How often the dashboard re-fetches the live snapshot, in milliseconds. */
++const SNAPSHOT_REFRESH_MS = 30_000;
++
++interface UseSnapshotPollingResult {
++  snapshot: OpsSnapshot | null;
++  snapshotError: string | null;
++  lastKnownTime: string | null;
++}
++
++function toMessage(caught: unknown, fallback: string): string {
++  return caught instanceof ApiError ? caught.message : fallback;
++}
++
++/**
++ * Loads the live operations snapshot on mount and re-polls it on an
++ * interval while online, falling back to the last cached snapshot (and
++ * flipping offline) if a fetch fails.
++ */
++export function useSnapshotPolling(
++  isOffline: boolean,
++  setIsOffline: (value: boolean) => void,
++): UseSnapshotPollingResult {
++  const [snapshot, setSnapshot] = useState<OpsSnapshot | null>(null);
++  const [snapshotError, setSnapshotError] = useState<string | null>(null);
++  const [lastKnownTime, setLastKnownTime] = useState<string | null>(null);
++
++  useEffect(() => {
++    let active = true;
++
++    const useCached = (): boolean => {
++      const cached = getOpsSnapshot();
++      if (!cached || !active) {
++        return false;
++      }
++      setSnapshot(cached);
++      setLastKnownTime(new Date(cached.generatedAt).toLocaleTimeString());
++      return true;
++    };
++
++    const load = async (): Promise<void> => {
++      if (isOffline) {
++        useCached();
++        return;
++      }
++      try {
++        const next = await fetchSnapshot();
++        if (active) {
++          setSnapshot(next);
++          saveOpsSnapshot(next);
++          setSnapshotError(null);
++          setLastKnownTime(new Date(next.generatedAt).toLocaleTimeString());
++        }
++      } catch (caught) {
++        if (active && !useCached()) {
++          setSnapshotError(toMessage(caught, 'Unable to load live operations data.'));
++        } else if (active) {
++          setIsOffline(true);
++        }
++      }
++    };
++
++    void load();
++    const timer = setInterval(() => {
++      if (!isOffline) {
++        void load();
++      }
++    }, SNAPSHOT_REFRESH_MS);
++    return () => {
++      active = false;
++      clearInterval(timer);
++    };
++  }, [isOffline, setIsOffline]);
++
++  return { snapshot, snapshotError, lastKnownTime };
++}
+diff --git a/client/src/lib/api-types.ts b/client/src/lib/api-types.ts
+index 89deec2..f45684f 100644
+--- a/client/src/lib/api-types.ts
++++ b/client/src/lib/api-types.ts
+@@ -61,3 +61,43 @@ export interface OpsBriefing {
+ export interface ApiErrorBody {
+   error: { code: string; message: string };
+ }
++
++/** A named entry gate with the stands it serves. */
++export interface Gate {
++  id: string;
++  name: string;
++  serves: string;
++  accessible: boolean;
++}
++
++/** A guest-facing facility inside the stadium. */
++export interface Facility {
++  id: string;
++  name: string;
++  category: string;
++  location: string;
++  accessible: boolean;
++  details: string;
++}
++
++/** A way to reach or leave the stadium. */
++export interface TransitRoute {
++  id: string;
++  mode: string;
++  name: string;
++  guidance: string;
++  accessible: boolean;
++}
++
++/** The full static venue description used for assistant grounding, from
++ *  GET /api/stadium/venue. This is the single source of truth for the
++ *  shape — other modules should import it rather than redeclaring it. */
++export interface VenueProfile {
++  name: string;
++  city: string;
++  tournament: string;
++  capacity: number;
++  gates: Gate[];
++  facilities: Facility[];
++  transit: TransitRoute[];
++}
+diff --git a/client/src/lib/api.ts b/client/src/lib/api.ts
+index 1d66138..b85a8fc 100644
+--- a/client/src/lib/api.ts
++++ b/client/src/lib/api.ts
+@@ -6,6 +6,7 @@ import type {
+   OpsBriefing,
+   OpsSnapshot,
+   SupportedLanguage,
++  VenueProfile,
+ } from './api-types.js';
+ 
+ /** Error thrown for any non-2xx API response, carrying a display message. */
+@@ -77,6 +78,6 @@ export function requestBriefing(): Promise<OpsBriefing> {
+ }
+ 
+ /** Fetches the complete venue profile. */
+-export function fetchVenueData(): Promise<{ venue: any }> {
+-  return request<{ venue: any }>('/api/stadium/venue');
++export function fetchVenueData(): Promise<{ venue: VenueProfile }> {
++  return request<{ venue: VenueProfile }>('/api/stadium/venue');
+ }
+diff --git a/client/src/lib/offline-store.ts b/client/src/lib/offline-store.ts
+index b71388f..4a78e09 100644
+--- a/client/src/lib/offline-store.ts
++++ b/client/src/lib/offline-store.ts
+@@ -1,38 +1,6 @@
+-import type { OpsSnapshot, SupportedLanguage } from './api-types.js';
++import type { OpsSnapshot, SupportedLanguage, VenueProfile } from './api-types.js';
+ 
+-export interface Gate {
+-  id: string;
+-  name: string;
+-  serves: string;
+-  accessible: boolean;
+-}
+-
+-export interface Facility {
+-  id: string;
+-  name: string;
+-  category: string;
+-  location: string;
+-  accessible: boolean;
+-  details: string;
+-}
+-
+-export interface TransitRoute {
+-  id: string;
+-  mode: string;
+-  name: string;
+-  guidance: string;
+-  accessible: boolean;
+-}
+-
+-export interface VenueProfile {
+-  name: string;
+-  city: string;
+-  tournament: string;
+-  capacity: number;
+-  gates: Gate[];
+-  facilities: Facility[];
+-  transit: TransitRoute[];
+-}
++export type { VenueProfile } from './api-types.js';
+ 
+ const FALLBACK_VENUE: VenueProfile = {
+   name: 'Estadio Azteca',
+@@ -153,22 +121,38 @@ const OFFLINE_ANSWERS: Record<SupportedLanguage, {
+   },
+ };
+ 
+-export function getOfflineAssistantResponse(question: string, language: SupportedLanguage): string {
+-  const query = question.toLowerCase();
+-  const answers = OFFLINE_ANSWERS[language] || OFFLINE_ANSWERS.en;
++type OfflineCategory = 'gates' | 'facilities' | 'transit' | 'accessible';
+ 
+-  if (query.includes('gate') || query.includes('entrance') || query.includes('section') || query.includes('بواب') || query.includes('مدخل') || query.includes('puerta') || query.includes('porte') || query.includes('portão')) {
+-    return answers.gates;
+-  }
+-  if (query.includes('food') || query.includes('eat') || query.includes('water') || query.includes('refill') || query.includes('prayer') || query.includes('family') || query.includes('طعام') || query.includes('ماء') || query.includes('صلاة') || query.includes('comida') || query.includes('nourriture') || query.includes('refeição')) {
+-    return answers.facilities;
+-  }
+-  if (query.includes('metro') || query.includes('transit') || query.includes('bus') || query.includes('shuttle') || query.includes('transport') || query.includes('حافل') || query.includes('مترو') || query.includes('autobús') || query.includes('bus') || query.includes('ônibus')) {
+-    return answers.transit;
+-  }
+-  if (query.includes('access') || query.includes('wheelchair') || query.includes('step-free') || query.includes('disab') || query.includes('mobility') || query.includes('كرسي') || query.includes('سهل') || query.includes('accesible') || query.includes('cadeira') || query.includes('fauteuil')) {
+-    return answers.accessible;
+-  }
++/** Keywords (across all supported languages) that route a question to each
++ *  canned offline category. Checked in order; first match wins. */
++const CATEGORY_KEYWORDS: readonly (readonly [OfflineCategory, readonly string[]])[] = [
++  ['gates', ['gate', 'entrance', 'section', 'بواب', 'مدخل', 'puerta', 'porte', 'portão']],
++  [
++    'facilities',
++    ['food', 'eat', 'water', 'refill', 'prayer', 'family', 'طعام', 'ماء', 'صلاة', 'comida', 'nourriture', 'refeição'],
++  ],
++  [
++    'transit',
++    ['metro', 'transit', 'bus', 'shuttle', 'transport', 'حافل', 'مترو', 'autobús', 'ônibus'],
++  ],
++  [
++    'accessible',
++    ['access', 'wheelchair', 'step-free', 'disab', 'mobility', 'كرسي', 'سهل', 'accesible', 'cadeira', 'fauteuil'],
++  ],
++];
++
++/** Picks the offline canned-answer category a free-text question maps to,
++ *  or `null` if nothing matches (caller falls back to the default answer). */
++function matchOfflineCategory(query: string): OfflineCategory | null {
++  const match = CATEGORY_KEYWORDS.find(([, keywords]) =>
++    keywords.some((keyword) => query.includes(keyword)),
++  );
++  return match ? match[0] : null;
++}
+ 
+-  return answers.default;
++export function getOfflineAssistantResponse(question: string, language: SupportedLanguage): string {
++  const query = question.toLowerCase();
++  const answers = OFFLINE_ANSWERS[language];
++  const category = matchOfflineCategory(query);
++  return category ? answers[category] : answers.default;
+ }
+diff --git a/client/src/lib/use-online-status.ts b/client/src/lib/use-online-status.ts
+new file mode 100644
+index 0000000..55d12ff
+--- /dev/null
++++ b/client/src/lib/use-online-status.ts
+@@ -0,0 +1,27 @@
++import { useEffect, useState } from 'react';
++
++/**
++ * Tracks browser connectivity via the `online`/`offline` window events.
++ * Returns the current offline flag and a setter, so callers can also force
++ * offline mode themselves (e.g. after a request fails with a network error).
++ */
++export function useOnlineStatus(): [boolean, (value: boolean) => void] {
++  const [isOffline, setIsOffline] = useState(() => !navigator.onLine);
++
++  useEffect(() => {
++    const handleOnline = (): void => {
++      setIsOffline(false);
++    };
++    const handleOffline = (): void => {
++      setIsOffline(true);
++    };
++    window.addEventListener('online', handleOnline);
++    window.addEventListener('offline', handleOffline);
++    return () => {
++      window.removeEventListener('online', handleOnline);
++      window.removeEventListener('offline', handleOffline);
++    };
++  }, []);
++
++  return [isOffline, setIsOffline];
++}
+diff --git a/client/tests/features/assistant/useAssistant.test.ts b/client/tests/features/assistant/useAssistant.test.ts
+index 3170f6f..031e674 100644
+--- a/client/tests/features/assistant/useAssistant.test.ts
++++ b/client/tests/features/assistant/useAssistant.test.ts
+@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+ 
+ import * as api from '../../../src/lib/api.js';
+ import { useAssistant } from '../../../src/features/assistant/useAssistant.js';
++import type { VenueProfile } from '../../../src/lib/api-types.js';
+ 
+ beforeEach(() => {
+   localStorage.clear();
+@@ -72,7 +73,7 @@ describe('useAssistant', () => {
+   });
+ 
+   it('pre-caches venue data on mount when online', async () => {
+-    const venueMock = { name: 'Estadio Azteca', capacity: 100 } as any;
++    const venueMock = { name: 'Estadio Azteca', capacity: 100 } as unknown as VenueProfile;
+     const fetchSpy = vi.spyOn(api, 'fetchVenueData').mockResolvedValue({ venue: venueMock });
+     
+     renderHook(() => useAssistant());
+diff --git a/client/tests/features/operations/useOperations.test.ts b/client/tests/features/operations/useOperations.test.ts
+index 8cdae56..74a7ed9 100644
+--- a/client/tests/features/operations/useOperations.test.ts
++++ b/client/tests/features/operations/useOperations.test.ts
+@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+ 
+ import * as api from '../../../src/lib/api.js';
+ import { useOperations } from '../../../src/features/operations/useOperations.js';
+-import type { OpsSnapshot } from '../../../src/lib/api-types.js';
++import type { OpsBriefing, OpsSnapshot } from '../../../src/lib/api-types.js';
+ 
+ const SNAPSHOT: OpsSnapshot = {
+   zones: [],
+@@ -41,11 +41,11 @@ describe('useOperations', () => {
+   it('should return early on generateBriefing if already loading', async () => {
+     vi.spyOn(api, 'fetchSnapshot').mockResolvedValue(SNAPSHOT);
+     
+-    let resolveBriefing!: (value: any) => void;
+-    const briefingPromise = new Promise((resolve) => {
++    let resolveBriefing!: (value: OpsBriefing) => void;
++    const briefingPromise = new Promise<OpsBriefing>((resolve) => {
+       resolveBriefing = resolve;
+     });
+-    const requestBriefingSpy = vi.spyOn(api, 'requestBriefing').mockReturnValue(briefingPromise as any);
++    const requestBriefingSpy = vi.spyOn(api, 'requestBriefing').mockReturnValue(briefingPromise);
+ 
+     const { result } = renderHook(() => useOperations());
+ 
+@@ -71,7 +71,7 @@ describe('useOperations', () => {
+     expect(requestBriefingSpy).toHaveBeenCalledTimes(1);
+   });
+ 
+-  it('updates online/offline state via window events', async () => {
++  it('updates online/offline state via window events', () => {
+     vi.spyOn(api, 'fetchSnapshot').mockResolvedValue(SNAPSHOT);
+     const { result } = renderHook(() => useOperations());
+ 
+diff --git a/client/tests/lib/offline-store.test.ts b/client/tests/lib/offline-store.test.ts
+index 530e1bf..0c45cc7 100644
+--- a/client/tests/lib/offline-store.test.ts
++++ b/client/tests/lib/offline-store.test.ts
+@@ -6,6 +6,7 @@ import {
+   saveOpsSnapshot,
+   saveVenueData,
+ } from '../../src/lib/offline-store.js';
++import type { OpsSnapshot, VenueProfile } from '../../src/lib/api-types.js';
+ 
+ describe('offline-store', () => {
+   beforeEach(() => {
+@@ -13,7 +14,7 @@ describe('offline-store', () => {
+   });
+ 
+   it('saves and retrieves venue data correctly', () => {
+-    const mockVenue = { name: 'Estadio Azteca Mock', capacity: 80000 } as any;
++    const mockVenue = { name: 'Estadio Azteca Mock', capacity: 80000 } as unknown as VenueProfile;
+     saveVenueData(mockVenue);
+     expect(getVenueData()).toEqual(mockVenue);
+   });
+@@ -25,7 +26,11 @@ describe('offline-store', () => {
+   });
+ 
+   it('saves and retrieves operations snapshot correctly', () => {
+-    const mockSnapshot = { generatedAt: '2026-07-12T10:00:00Z', zones: [], incidents: [] } as any;
++    const mockSnapshot = {
++      generatedAt: '2026-07-12T10:00:00Z',
++      zones: [],
++      incidents: [],
++    } as unknown as OpsSnapshot;
+     saveOpsSnapshot(mockSnapshot);
+     expect(getOpsSnapshot()).toEqual(mockSnapshot);
+   });
+@@ -47,7 +52,7 @@ describe('offline-store', () => {
+     expect(venue.name).toBe('Estadio Azteca');
+ 
+     // Should fail silently
+-    saveOpsSnapshot({} as any);
++    saveOpsSnapshot({} as unknown as OpsSnapshot);
+ 
+     // Should return null
+     expect(getOpsSnapshot()).toBeNull();
+diff --git a/eslint.config.js b/eslint.config.js
+index ce5eba3..e149c3e 100644
+--- a/eslint.config.js
++++ b/eslint.config.js
+@@ -9,7 +9,10 @@ export default tseslint.config(
+   ...tseslint.configs.stylisticTypeChecked,
+   {
+     languageOptions: {
+-      parserOptions: { projectService: true, tsconfigRootDir: import.meta.dirname },
++      parserOptions: {
++        projectService: true,
++        tsconfigRootDir: import.meta.dirname,
++      },
+     },
+     rules: {
+       'no-console': ['error', { allow: ['warn', 'error'] }],
+@@ -45,4 +48,30 @@ export default tseslint.config(
+     files: ['**/*.js'],
+     extends: [tseslint.configs.disableTypeChecked],
+   },
++  {
++    // Repo tooling and e2e specs live outside the client/server tsconfig
++    // projects, and don't need the same project-aware strictness as
++    // application code — lint them syntactically instead.
++    files: ['*.cjs', 'playwright.config.ts', 'playwright.live.config.ts', 'e2e/**/*.ts'],
++    extends: [tseslint.configs.disableTypeChecked],
++    languageOptions: {
++      globals: { module: 'readonly', require: 'readonly' },
++    },
++  },
++  {
++    files: ['tests/load/**/*.js'],
++    languageOptions: {
++      globals: {
++        __ENV: 'readonly',
++        __VU: 'readonly',
++        __ITER: 'readonly',
++      },
++    },
++    rules: {
++      // k6 scripts run in k6's own JS runtime; the default-export function
++      // is invoked by k6 itself, not by our own app code, so the usual
++      // module-boundary typing rule doesn't apply here.
++      '@typescript-eslint/explicit-module-boundary-types': 'off',
++    },
++  },
+ );
+diff --git a/server/src/lib/async-utils.ts b/server/src/lib/async-utils.ts
+index 3b80442..8bead80 100644
+--- a/server/src/lib/async-utils.ts
++++ b/server/src/lib/async-utils.ts
+@@ -6,8 +6,8 @@ export function delay(ms: number): Promise<void> {
+ /** Retries an async function up to a specified number of times with an optional delay. */
+ export async function retryWithDelay<T>(
+   fn: () => Promise<T>,
+-  retries: number = 1,
+-  delayMs: number = 0,
++  retries = 1,
++  delayMs = 0,
+ ): Promise<T> {
+   try {
+     return await fn();
+@@ -26,11 +26,13 @@ export async function retryWithDelay<T>(
+ export function withTimeout<T>(
+   promise: Promise<T>,
+   timeoutMs: number,
+-  errorMessage: string = 'Operation timed out',
++  errorMessage = 'Operation timed out',
+ ): Promise<T> {
+   let timeoutId: NodeJS.Timeout | undefined;
+   const timeoutPromise = new Promise<never>((_, reject) => {
+-    timeoutId = setTimeout(() => reject(new Error(errorMessage)), timeoutMs);
++    timeoutId = setTimeout(() => {
++      reject(new Error(errorMessage));
++    }, timeoutMs);
+   });
+   return Promise.race([promise, timeoutPromise]).finally(() => {
+     if (timeoutId) {
+diff --git a/server/tests/lib/async-utils.test.ts b/server/tests/lib/async-utils.test.ts
+index 7366f05..a716717 100644
+--- a/server/tests/lib/async-utils.test.ts
++++ b/server/tests/lib/async-utils.test.ts
+@@ -29,12 +29,12 @@ describe('async-utils', () => {
+ 
+     it('should retry if the function fails and eventually succeed', async () => {
+       let calls = 0;
+-      const fn = vi.fn().mockImplementation(async () => {
++      const fn = vi.fn().mockImplementation(() => {
+         calls++;
+         if (calls < 3) {
+-          throw new Error('fail');
++          return Promise.reject(new Error('fail'));
+         }
+-        return 'success';
++        return Promise.resolve('success');
+       });
+ 
+       const result = await retryWithDelay(fn, 3, 5);
+@@ -44,12 +44,12 @@ describe('async-utils', () => {
+ 
+     it('should work without delay if delayMs is 0 or negative', async () => {
+       let calls = 0;
+-      const fn = vi.fn().mockImplementation(async () => {
++      const fn = vi.fn().mockImplementation(() => {
+         calls++;
+         if (calls < 2) {
+-          throw new Error('fail fast');
++          return Promise.reject(new Error('fail fast'));
+         }
+-        return 'success fast';
++        return Promise.resolve('success fast');
+       });
+ 
+       const result = await retryWithDelay(fn, 2, 0);
+diff --git a/server/tests/middleware/error-handler.test.ts b/server/tests/middleware/error-handler.test.ts
+index 7fc4860..10ff499 100644
+--- a/server/tests/middleware/error-handler.test.ts
++++ b/server/tests/middleware/error-handler.test.ts
+@@ -26,15 +26,14 @@ describe('error-handler middleware', () => {
+       const req = { method: 'POST', path: '/ask' } as Request;
+       
+       const jsonMock = vi.fn();
+-      const res = {
+-        status: vi.fn().mockImplementation(() => ({ json: jsonMock })),
+-      } as unknown as Response;
+-      
++      const statusMock = vi.fn().mockImplementation(() => ({ json: jsonMock }));
++      const res = { status: statusMock } as unknown as Response;
++
+       const next = vi.fn() as NextFunction;
+ 
+       errorHandler(err, req, res, next);
+ 
+-      expect(res.status).toHaveBeenCalledWith(400);
++      expect(statusMock).toHaveBeenCalledWith(400);
+       expect(jsonMock).toHaveBeenCalledWith({
+         error: { code: 'BAD_REQUEST', message: 'Invalid body data' },
+       });
+@@ -45,15 +44,14 @@ describe('error-handler middleware', () => {
+       const req = { method: 'GET', path: '/ops' } as Request;
+ 
+       const jsonMock = vi.fn();
+-      const res = {
+-        status: vi.fn().mockImplementation(() => ({ json: jsonMock })),
+-      } as unknown as Response;
++      const statusMock = vi.fn().mockImplementation(() => ({ json: jsonMock }));
++      const res = { status: statusMock } as unknown as Response;
+ 
+       const next = vi.fn() as NextFunction;
+ 
+       errorHandler(err, req, res, next);
+ 
+-      expect(res.status).toHaveBeenCalledWith(500);
++      expect(statusMock).toHaveBeenCalledWith(500);
+       expect(jsonMock).toHaveBeenCalledWith({
+         error: { code: 'INTERNAL', message: 'Something went wrong on our side. Please try again.' },
+       });
+@@ -64,15 +62,14 @@ describe('error-handler middleware', () => {
+       const req = { method: 'GET', path: '/ops' } as Request;
+ 
+       const jsonMock = vi.fn();
+-      const res = {
+-        status: vi.fn().mockImplementation(() => ({ json: jsonMock })),
+-      } as unknown as Response;
++      const statusMock = vi.fn().mockImplementation(() => ({ json: jsonMock }));
++      const res = { status: statusMock } as unknown as Response;
+ 
+       const next = vi.fn() as NextFunction;
+ 
+       errorHandler(err, req, res, next);
+ 
+-      expect(res.status).toHaveBeenCalledWith(500);
++      expect(statusMock).toHaveBeenCalledWith(500);
+       expect(jsonMock).toHaveBeenCalledWith({
+         error: { code: 'INTERNAL', message: 'Something went wrong on our side. Please try again.' },
+       });

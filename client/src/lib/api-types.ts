@@ -61,3 +61,43 @@ export interface OpsBriefing {
 export interface ApiErrorBody {
   error: { code: string; message: string };
 }
+
+/** A named entry gate with the stands it serves. */
+export interface Gate {
+  id: string;
+  name: string;
+  serves: string;
+  accessible: boolean;
+}
+
+/** A guest-facing facility inside the stadium. */
+export interface Facility {
+  id: string;
+  name: string;
+  category: string;
+  location: string;
+  accessible: boolean;
+  details: string;
+}
+
+/** A way to reach or leave the stadium. */
+export interface TransitRoute {
+  id: string;
+  mode: string;
+  name: string;
+  guidance: string;
+  accessible: boolean;
+}
+
+/** The full static venue description used for assistant grounding, from
+ *  GET /api/stadium/venue. This is the single source of truth for the
+ *  shape — other modules should import it rather than redeclaring it. */
+export interface VenueProfile {
+  name: string;
+  city: string;
+  tournament: string;
+  capacity: number;
+  gates: Gate[];
+  facilities: Facility[];
+  transit: TransitRoute[];
+}

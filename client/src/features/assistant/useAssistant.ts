@@ -1,10 +1,12 @@
 // State and side effects for the fan assistant conversation. Keeps the page
 // component declarative: it renders whatever this hook exposes.
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useState } from 'react';
 
-import { ApiError, askAssistant, fetchVenueData } from '../../lib/api.js';
+import { ApiError, askAssistant } from '../../lib/api.js';
 import type { SupportedLanguage } from '../../lib/api-types.js';
-import { getOfflineAssistantResponse, saveVenueData } from '../../lib/offline-store.js';
+import { getOfflineAssistantResponse } from '../../lib/offline-store.js';
+import { useOnlineStatus } from '../../lib/use-online-status.js';
+import { useCachedVenueTime } from './useCachedVenueTime.js';
 
 /** A single turn in the assistant conversation. */
 export interface ChatTurn {
@@ -35,38 +37,8 @@ export function useAssistant(): UseAssistantResult {
   const [language, setLanguage] = useState<SupportedLanguage>('en');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [isOffline, setIsOffline] = useState(() => !navigator.onLine);
-  const [lastKnownTime, setLastKnownTime] = useState<string | null>(() => {
-    return localStorage.getItem('arenaflow_venue_data_time') || null;
-  });
-
-  // Track online/offline status
-  useEffect(() => {
-    const handleOnline = () => setIsOffline(false);
-    const handleOffline = () => setIsOffline(true);
-    window.addEventListener('online', handleOnline);
-    window.addEventListener('offline', handleOffline);
-    return () => {
-      window.removeEventListener('online', handleOnline);
-      window.removeEventListener('offline', handleOffline);
-    };
-  }, []);
-
-  // Fetch venue data on mount to cache it for offline fallback
-  useEffect(() => {
-    if (!isOffline) {
-      fetchVenueData()
-        .then((res) => {
-          saveVenueData(res.venue);
-          const nowStr = new Date().toLocaleTimeString();
-          localStorage.setItem('arenaflow_venue_data_time', nowStr);
-          setLastKnownTime(nowStr);
-        })
-        .catch(() => {
-          // Ignore background fetch error, rely on fallback/cache
-        });
-    }
-  }, [isOffline]);
+  const [isOffline, setIsOffline] = useOnlineStatus();
+  const lastKnownTime = useCachedVenueTime(isOffline);
 
   const ask = useCallback(
     async (question: string): Promise<void> => {

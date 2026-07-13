@@ -1,17 +1,15 @@
 // State and side effects for the operations command center: loads the live
 // snapshot on mount, refreshes it on an interval, and generates AI briefings
 // on demand.
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useState } from 'react';
 
-import { ApiError, fetchSnapshot, requestBriefing } from '../../lib/api.js';
-import type { OpsBriefing, OpsSnapshot } from '../../lib/api-types.js';
-import { getOpsSnapshot, saveOpsSnapshot } from '../../lib/offline-store.js';
-
-/** How often the dashboard re-fetches the live snapshot, in milliseconds. */
-const SNAPSHOT_REFRESH_MS = 30_000;
+import { ApiError, requestBriefing } from '../../lib/api.js';
+import type { OpsBriefing } from '../../lib/api-types.js';
+import { useOnlineStatus } from '../../lib/use-online-status.js';
+import { useSnapshotPolling } from './useSnapshotPolling.js';
 
 interface UseOperationsResult {
-  snapshot: OpsSnapshot | null;
+  snapshot: ReturnType<typeof useSnapshotPolling>['snapshot'];
   snapshotError: string | null;
   briefing: OpsBriefing | null;
   isBriefingLoading: boolean;
@@ -27,69 +25,11 @@ function toMessage(caught: unknown, fallback: string): string {
 
 /** Manages live snapshot polling and briefing generation for the dashboard. */
 export function useOperations(): UseOperationsResult {
-  const [snapshot, setSnapshot] = useState<OpsSnapshot | null>(null);
-  const [snapshotError, setSnapshotError] = useState<string | null>(null);
   const [briefing, setBriefing] = useState<OpsBriefing | null>(null);
   const [isBriefingLoading, setIsBriefingLoading] = useState(false);
   const [briefingError, setBriefingError] = useState<string | null>(null);
-  const [isOffline, setIsOffline] = useState(() => !navigator.onLine);
-  const [lastKnownTime, setLastKnownTime] = useState<string | null>(null);
-
-  // Track online/offline status
-  useEffect(() => {
-    const handleOnline = () => setIsOffline(false);
-    const handleOffline = () => setIsOffline(true);
-    window.addEventListener('online', handleOnline);
-    window.addEventListener('offline', handleOffline);
-    return () => {
-      window.removeEventListener('online', handleOnline);
-      window.removeEventListener('offline', handleOffline);
-    };
-  }, []);
-
-  useEffect(() => {
-    let active = true;
-    const load = async (): Promise<void> => {
-      if (isOffline) {
-        const cached = getOpsSnapshot();
-        if (cached && active) {
-          setSnapshot(cached);
-          setLastKnownTime(new Date(cached.generatedAt).toLocaleTimeString());
-        }
-        return;
-      }
-      try {
-        const next = await fetchSnapshot();
-        if (active) {
-          setSnapshot(next);
-          saveOpsSnapshot(next);
-          setSnapshotError(null);
-          setLastKnownTime(new Date(next.generatedAt).toLocaleTimeString());
-        }
-      } catch (caught) {
-        if (active) {
-          const cached = getOpsSnapshot();
-          if (cached) {
-            setSnapshot(cached);
-            setLastKnownTime(new Date(cached.generatedAt).toLocaleTimeString());
-            setIsOffline(true);
-          } else {
-            setSnapshotError(toMessage(caught, 'Unable to load live operations data.'));
-          }
-        }
-      }
-    };
-    void load();
-    const timer = setInterval(() => {
-      if (!isOffline) {
-        void load();
-      }
-    }, SNAPSHOT_REFRESH_MS);
-    return () => {
-      active = false;
-      clearInterval(timer);
-    };
-  }, [isOffline]);
+  const [isOffline, setIsOffline] = useOnlineStatus();
+  const { snapshot, snapshotError, lastKnownTime } = useSnapshotPolling(isOffline, setIsOffline);
 
   const generateBriefing = useCallback(async (): Promise<void> => {
     if (isBriefingLoading) {
@@ -111,7 +51,7 @@ export function useOperations(): UseOperationsResult {
     } finally {
       setIsBriefingLoading(false);
     }
-  }, [isBriefingLoading, isOffline]);
+  }, [isBriefingLoading, isOffline, setIsOffline]);
 
   return {
     snapshot,
