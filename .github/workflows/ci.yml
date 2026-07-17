@@ -42,7 +42,9 @@ jobs:
         run: npm run build
 
       - name: Run Semgrep SAST
-        run: npx semgrep --config=auto --error
+        run: |
+          pip install semgrep
+          semgrep --config=auto --error
 
       - name: Generate CycloneDX SBOM
         run: |
