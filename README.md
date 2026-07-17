@@ -9,7 +9,7 @@ grounded, multilingual assistant for supporters, and a live operations
 dashboard for the people running the venue — sharing one codebase, one
 venue dataset, and one deploy.
 
-🔗 **Live:** https://arenaflow.onrender.com/
+🔗 **Live:** https://arenaflow-1.onrender.com/
 
 ---
 
