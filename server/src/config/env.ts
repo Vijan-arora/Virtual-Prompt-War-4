@@ -31,14 +31,14 @@ export type Env = z.infer<typeof envSchema>;
  * @throws Error listing every invalid variable when validation fails.
  */
 export function loadEnv(source: NodeJS.ProcessEnv = process.env): Env {
-  const result = envSchema.safeParse(source);
-  if (!result.success) {
-    const details = result.error.issues
+  const envValidationResult = envSchema.safeParse(source);
+  if (!envValidationResult.success) {
+    const details = envValidationResult.error.issues
       .map((issue) => `${issue.path.join('.')}: ${issue.message}`)
       .join('; ');
     throw new Error(`Invalid environment configuration — ${details}`);
   }
-  return result.data;
+  return envValidationResult.data;
 }
 
 /** Configuration validated once at module load. */

@@ -4,6 +4,7 @@
   "description": "ArenaFlow API — Gemini-powered multilingual fan assistant and stadium operations intelligence on Firestore.",
   "private": true,
   "license": "MIT",
+  "author": "Vijan Arora",
   "type": "module",
   "engines": {
     "node": ">=22"

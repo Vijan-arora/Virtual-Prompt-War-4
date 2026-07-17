@@ -4,6 +4,7 @@
   "description": "ArenaFlow web client — matchday fan assistant and operations command center.",
   "private": true,
   "license": "MIT",
+  "author": "Vijan Arora",
   "type": "module",
   "engines": {
     "node": ">=22"

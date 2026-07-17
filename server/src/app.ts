@@ -80,9 +80,8 @@ export function buildApp(): express.Express {
   app.use(compression());
   app.use(express.json({ limit: JSON_BODY_LIMIT }));
 
-  // Liveness endpoint. Lives under /api because the Google Front End reserves
-  // the bare /healthz path and answers it at the edge before Cloud Run. Placed
-  // ahead of the rate limiter so health checks are never throttled.
+  // Liveness endpoint. Placed under /api so it shares the same base path as
+  // all API routes and is ahead of the rate limiter so health checks are never throttled.
   app.get('/api/health', (_req, res) => {
     res.json({ status: 'ok', version: APP_VERSION });
   });
@@ -92,7 +91,7 @@ export function buildApp(): express.Express {
     res.type('text/plain');
     res.send(
       [
-        'Contact: mailto:usy.joseph@gmail.com',
+        'Contact: https://github.com/Vijan-arora',
         'Expires: 2027-12-31T23:59:59Z',
         'Preferred-Languages: en',
         'Policy: https://github.com/Vijan-arora/ArenaFlow/blob/main/SECURITY.md',

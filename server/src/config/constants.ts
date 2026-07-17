@@ -1,7 +1,7 @@
 // Application-wide constants. Every tunable number lives here so behaviour
 // is auditable in one place.
 
-/** Fallback HTTP port when Cloud Run does not inject one. */
+/** Fallback HTTP port when the hosting platform does not inject one via PORT. */
 export const DEFAULT_PORT = 8080;
 
 /** Reported by GET /api/health so a deploy can be matched to a commit. */

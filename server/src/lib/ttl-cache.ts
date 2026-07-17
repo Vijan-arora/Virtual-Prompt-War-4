@@ -1,6 +1,6 @@
 // In-memory TTL cache for repeated Gemini calls. Intentionally per-instance:
-// the service runs on Cloud Run with min-instances=1 and identical inputs are
-// common (quick-action questions), so a shared cache is unnecessary — see
+// a single warm service instance handles the common case (quick-action
+// questions share identical inputs), so a shared cache is unnecessary — see
 // docs/decisions.md.
 
 interface CacheEntry<T> {

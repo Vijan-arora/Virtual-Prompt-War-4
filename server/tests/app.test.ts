@@ -44,7 +44,7 @@ describe('GET /.well-known/security.txt', () => {
     const res = await request(app).get('/.well-known/security.txt');
     expect(res.status).toBe(200);
     expect(res.header['content-type']).toContain('text/plain');
-    expect(res.text).toContain('Contact: mailto:usy.joseph@gmail.com');
+    expect(res.text).toContain('Contact: https://github.com/Vijan-arora');
     expect(res.text).toContain('Preferred-Languages: en');
   });
 });

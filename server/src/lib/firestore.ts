@@ -1,5 +1,5 @@
 // Firestore access. The client is created once at module scope and reused
-// across requests; on Cloud Run it authenticates via the service account.
+// across requests; in production it authenticates via the attached service account.
 import { Firestore } from '@google-cloud/firestore';
 
 import { env } from '../config/env.js';

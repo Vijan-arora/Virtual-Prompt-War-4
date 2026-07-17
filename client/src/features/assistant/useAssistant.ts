@@ -62,10 +62,15 @@ export function useAssistant(): UseAssistantResult {
       }
 
       try {
-        const result = await askAssistant(trimmed, language);
+        const assistantAnswer = await askAssistant(trimmed, language);
         setTurns((prev) => [
           ...prev,
-          { id: makeId(), role: 'assistant', text: result.answer, lang: result.language },
+          {
+            id: makeId(),
+            role: 'assistant',
+            text: assistantAnswer.answer,
+            lang: assistantAnswer.language,
+          },
         ]);
       } catch (caught) {
         if (caught instanceof ApiError && caught.code === 'NETWORK') {

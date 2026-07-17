@@ -193,6 +193,11 @@ const STORAGE_KEYS = {
   snapshot: 'arenaflow_ops_snapshot',
 };
 
+/**
+ * Saves the static venue profile to localStorage for offline access.
+ *
+ * @param venue - The venue profile to store.
+ */
 export function saveVenueData(venue: VenueProfile): void {
   try {
     localStorage.setItem(STORAGE_KEYS.venue, JSON.stringify(venue));
@@ -201,15 +206,26 @@ export function saveVenueData(venue: VenueProfile): void {
   }
 }
 
+/**
+ * Retrieves the cached venue profile from localStorage, falling back to the
+ * in-memory default if absent or inaccessible.
+ *
+ * @returns The active venue profile.
+ */
 export function getVenueData(): VenueProfile {
   try {
-    const data = localStorage.getItem(STORAGE_KEYS.venue);
-    return data ? (JSON.parse(data) as VenueProfile) : FALLBACK_VENUE;
+    const cachedVenueStr = localStorage.getItem(STORAGE_KEYS.venue);
+    return cachedVenueStr ? (JSON.parse(cachedVenueStr) as VenueProfile) : FALLBACK_VENUE;
   } catch {
     return FALLBACK_VENUE;
   }
 }
 
+/**
+ * Saves the latest operations snapshot to localStorage.
+ *
+ * @param snapshot - The snapshot object to store.
+ */
 export function saveOpsSnapshot(snapshot: OpsSnapshot): void {
   try {
     localStorage.setItem(STORAGE_KEYS.snapshot, JSON.stringify(snapshot));
@@ -218,10 +234,15 @@ export function saveOpsSnapshot(snapshot: OpsSnapshot): void {
   }
 }
 
+/**
+ * Retrieves the cached operations snapshot from localStorage.
+ *
+ * @returns The cached snapshot, or null if not found.
+ */
 export function getOpsSnapshot(): OpsSnapshot | null {
   try {
-    const data = localStorage.getItem(STORAGE_KEYS.snapshot);
-    return data ? (JSON.parse(data) as OpsSnapshot) : null;
+    const cachedSnapshotStr = localStorage.getItem(STORAGE_KEYS.snapshot);
+    return cachedSnapshotStr ? (JSON.parse(cachedSnapshotStr) as OpsSnapshot) : null;
   } catch {
     return null;
   }
@@ -352,6 +373,13 @@ function matchOfflineCategory(query: string): OfflineCategory | null {
   return match ? match[0] : null;
 }
 
+/**
+ * Picks a canned response for the fan question based on keyword matching when the client is offline.
+ *
+ * @param question - The raw user query.
+ * @param language - The preferred language code.
+ * @returns The canned offline response string.
+ */
 export function getOfflineAssistantResponse(question: string, language: SupportedLanguage): string {
   const query = question.toLowerCase();
   const answers = OFFLINE_ANSWERS[language];

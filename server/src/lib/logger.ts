@@ -1,5 +1,5 @@
-// Structured JSON logger. On Cloud Run these lines land in Cloud Logging;
-// the `severity` field lets Cloud Logging classify them natively.
+// Structured JSON logger. The `severity` field lets log aggregators (e.g.
+// Render logs, Cloud Logging) classify entries natively.
 import { pino } from 'pino';
 
 import { env } from '../config/env.js';

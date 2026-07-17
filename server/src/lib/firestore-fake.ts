@@ -29,6 +29,9 @@ function resolveValue(existing: unknown, update: unknown): unknown {
   return update;
 }
 
+/**
+ * Mock Firestore database implementing a minimal in-memory store for testing.
+ */
 export class FakeFirestore {
   private readonly store = new Map<string, Map<string, DocData>>();
 
@@ -41,10 +44,20 @@ export class FakeFirestore {
     return collection;
   }
 
+  /**
+   * Clears all collections and documents from the in-memory store.
+   */
   reset(): void {
     this.store.clear();
   }
 
+  /**
+   * Directly reads a document from a collection without a Promise.
+   *
+   * @param collectionName - The collection containing the document.
+   * @param id - Unique identifier of the document.
+   * @returns The raw document data, or undefined if absent.
+   */
   read(collectionName: string, id: string): DocData | undefined {
     return this.col(collectionName).get(id);
   }
@@ -73,6 +86,11 @@ export class FakeFirestore {
     };
   }
 
+  /**
+   * Returns a mock reference to the specified collection.
+   *
+   * @param name - The collection name.
+   */
   collection(name: string): {
     get(): Promise<FakeQuerySnapshot>;
     limit(n: number): { get(): Promise<FakeQuerySnapshot> };
@@ -85,33 +103,41 @@ export class FakeFirestore {
     };
   }
 
+  private mergeAndStore(
+    collectionName: string,
+    id: string,
+    fields: DocData,
+    existing: DocData,
+  ): void {
+    const collection = this.col(collectionName);
+    const merged = { ...existing };
+    for (const [key, val] of Object.entries(fields)) {
+      merged[key] = resolveValue(existing[key], val);
+    }
+    collection.set(id, merged);
+  }
+
+  /**
+   * Creates a mock write batch for executing multiple mutations.
+   */
   batch(): {
-    set(ref: FakeDocRef, data: DocData, options?: { merge?: boolean }): void;
-    update(ref: FakeDocRef, data: DocData): void;
+    set(ref: FakeDocRef, fields: DocData, options?: { merge?: boolean }): void;
+    update(ref: FakeDocRef, fields: DocData): void;
     commit(): Promise<void>;
   } {
     const operations: (() => void)[] = [];
     return {
-      set: (ref, data, options) => {
+      set: (ref, fields, options) => {
         operations.push(() => {
-          const collection = this.col(ref.collectionName);
-          const existing = options?.merge === true ? (collection.get(ref.id) ?? {}) : {};
-          const merged = { ...existing };
-          for (const [key, val] of Object.entries(data)) {
-            merged[key] = resolveValue(existing[key], val);
-          }
-          collection.set(ref.id, merged);
+          const existing =
+            options?.merge === true ? (this.col(ref.collectionName).get(ref.id) ?? {}) : {};
+          this.mergeAndStore(ref.collectionName, ref.id, fields, existing);
         });
       },
-      update: (ref, data) => {
+      update: (ref, fields) => {
         operations.push(() => {
-          const collection = this.col(ref.collectionName);
-          const existing = collection.get(ref.id) ?? {};
-          const merged = { ...existing };
-          for (const [key, val] of Object.entries(data)) {
-            merged[key] = resolveValue(existing[key], val);
-          }
-          collection.set(ref.id, merged);
+          const existing = this.col(ref.collectionName).get(ref.id) ?? {};
+          this.mergeAndStore(ref.collectionName, ref.id, fields, existing);
         });
       },
       commit: () => {
@@ -123,6 +149,9 @@ export class FakeFirestore {
     };
   }
 
+  /**
+   * Casts this class instance to Firestore for dependency injection.
+   */
   asFirestore(): Firestore {
     return this as unknown as Firestore;
   }

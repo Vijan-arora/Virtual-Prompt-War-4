@@ -4,6 +4,7 @@
   "description": "GenAI-enabled Smart Stadiums & Tournament Operations platform for the FIFA World Cup 2026 — multilingual fan navigation, crowd management, accessibility, transportation guidance, sustainability tracking, and real-time operational decision support.",
   "private": true,
   "license": "MIT",
+  "author": "Vijan Arora",
   "type": "module",
   "engines": {
     "node": ">=22"

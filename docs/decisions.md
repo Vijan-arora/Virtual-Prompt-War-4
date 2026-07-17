@@ -3,7 +3,7 @@
 Short records of the load-bearing decisions behind ArenaFlow. Each is
 context → decision → tradeoff.
 
-## ADR-1: Single Cloud Run service serves both API and client
+## ADR-1: Single Render service serves both API and client
 
 **Context.** The judge and fans need one URL; running separate frontend and
 backend services doubles deploy surface and adds a CORS hop.
@@ -26,16 +26,15 @@ each zone's occupancy in Firestore on a fixed interval. Every read path
 same documents a real ingest would write, replacing it with a sensor stream
 touches one function and leaves the API, UI and tests unchanged.
 
-## ADR-3: Gemini API key in Secret Manager, mounted via `--set-secrets`
+## ADR-3: Gemini API key in Render environment variables
 
-**Context.** The server needs a Gemini credential; the judge scores
-GCP-native secret handling and penalizes any secret in the repo or image.
-**Decision.** The key lives in Google Secret Manager and is mounted into the
-Cloud Run container as an environment variable via `--set-secrets`. Local
-development reads it from a gitignored `.env`.
-**Tradeoff.** Rotating the key requires a new secret version and a revision
-redeploy, rather than an app-level reload. That is the correct default for a
-public demo where key isolation matters more than hot rotation.
+**Context.** The server needs a Gemini credential; it must never appear in
+the repo, image, or git history.
+**Decision.** The key is set as a Render environment variable in the Render
+dashboard. Local development reads it from a gitignored `.env`.
+**Tradeoff.** Rotating the key requires updating the Render env var and
+redeploying. That is the correct default for a public demo where key
+isolation matters more than hot rotation.
 
 ## ADR-4: Per-instance in-memory TTL cache, not Redis
 
@@ -43,12 +42,12 @@ public demo where key isolation matters more than hot rotation.
 briefing clicks would otherwise re-run Gemini inference, adding latency and
 cost.
 **Decision.** A small bounded TTL cache in process memory backs both the
-assistant answers and the briefing. The service runs with
-`--min-instances=1`, so one warm instance absorbs the common case.
+assistant answers and the briefing. The service keeps one warm instance
+running, so one warm instance absorbs the common case.
 **Tradeoff.** The cache is not shared across instances, so a scale-out event
-yields a brief cache-miss window. A shared cache (Redis/Memorystore) is the
-upgrade path if the service ever runs many instances; it is unjustified
-infrastructure at this scale.
+yields a brief cache-miss window. A shared cache (Redis) is the upgrade path
+if the service ever runs many instances; it is unjustified infrastructure
+at this scale.
 
 ## ADR-5: Language handled in the prompt, not a UI i18n framework
 

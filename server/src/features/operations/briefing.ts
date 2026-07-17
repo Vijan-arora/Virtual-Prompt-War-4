@@ -65,9 +65,9 @@ export async function generateBriefing(): Promise<OpsBriefing> {
   }
   const snapshot = await getSnapshot();
   const briefing = await generateText(buildBriefingPrompt(snapshot));
-  const result: OpsBriefing = { briefing, generatedAt: new Date().toISOString() };
-  briefingCache.set(BRIEFING_CACHE_KEY, result);
-  return result;
+  const opsBriefing: OpsBriefing = { briefing, generatedAt: new Date().toISOString() };
+  briefingCache.set(BRIEFING_CACHE_KEY, opsBriefing);
+  return opsBriefing;
 }
 
 /** Clears the briefing cache (used by tests). */

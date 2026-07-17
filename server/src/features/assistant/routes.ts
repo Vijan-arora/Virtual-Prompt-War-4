@@ -11,7 +11,7 @@ export const assistantRoutes: Router = Router();
 
 assistantRoutes.post('/ask', genAiLimiter, validateBody(askRequestSchema), (req, res, next) => {
   askAssistant(req.body as AskRequest)
-    .then((result) => res.json(result))
+    .then((answerResponse) => res.json(answerResponse))
     .catch((error: unknown) => {
       next(error);
     });
